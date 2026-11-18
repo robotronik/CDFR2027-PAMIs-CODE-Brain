@@ -18,7 +18,7 @@ cmake -S tests -B tests/build && cmake --build tests/build && ctest --test-dir t
 - `main/`: `app_main` and `board.hpp`, the pin map and single source of truth for pins.
 - `components/<name>/`: one IDF component per module, with `include/<name>/` and `src/`.
   Create a component only when its code exists.
-- `led`: blinks an LED from a task. The simplest example of a component, start here.
+- `hello`: a task that prints a line every second. The simplest example of a component, start here.
 - `control_link`: SPI master to the ControlBoard + frame protocol. Wire format spec:
   [wiki](https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/wiki/BrainBoard-SPI-Protocol).
   `protocol.cpp` has no IDF includes, so `tests/` builds it on the host.

@@ -1,1 +1,1 @@
-idf_component_register(SRCS "main.cpp" INCLUDE_DIRS "." REQUIRES control_link led)
+idf_component_register(SRCS "main.cpp" INCLUDE_DIRS "." REQUIRES control_link hello)

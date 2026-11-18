@@ -4,8 +4,6 @@ Firmware for the BrainBoard (ESP32-S3) of Robotronik's 2027 PAMI robots (Coupe d
 It is the SPI master to the ControlBoard, which runs [CDFR2027-PAMIs-CODE-Control](https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control).
 Wire format: [BrainBoard SPI Protocol](https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/wiki/BrainBoard-SPI-Protocol).
 
-The LED pin is a placeholder for now (TODO in `main/board.hpp`).
-
 ## Build & flash
 
 ```sh

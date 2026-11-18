@@ -1,14 +1,14 @@
 #include "board.hpp"
 #include "esp_log.h"
-#include "led/led.hpp"
+#include "hello/hello.hpp"
 
 static const char* TAG = "main";
 
 extern "C" void app_main(void) {
     ESP_LOGI(TAG, "BrainBoard starting");
 
-    if (!startLedBlink(LED_PIN)) {
-        ESP_LOGE(TAG, "LED failed to start");
+    if (!startHello()) {
+        ESP_LOGE(TAG, "hello failed to start");
     }
 
     static ControlLink controlLink;
