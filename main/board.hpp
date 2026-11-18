@@ -10,3 +10,5 @@ constexpr control_link_pins_t CONTROL_LINK_PINS = {
     GPIO_NUM_10, // cs        TODO: placeholder
     GPIO_NUM_14, // handshake TODO: placeholder
 };
+
+constexpr gpio_num_t LED_PIN = GPIO_NUM_2; // TODO: placeholder, real GPIO from the BrainBoard schematic
