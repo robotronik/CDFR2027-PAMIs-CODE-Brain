@@ -8,6 +8,16 @@ static const char* TAG = "control_link";
 // The ControlBoard stops the motors after 500 ms without a valid frame
 static const int EXCHANGE_PERIOD_MS = 50;
 static const int HANDSHAKE_TIMEOUT_MS = 100;
+static const int COMMAND_QUEUE_DEPTH = 8;
+
+struct command_t {
+        opcode_t opcode;
+        float x;
+        float y;
+        float theta;
+        uint8_t servoId;
+        uint8_t angleDeg;
+};
 
 bool ControlLink::start(const control_link_pins_t& pins) {
     this->pins = pins;
@@ -37,8 +47,11 @@ bool ControlLink::start(const control_link_pins_t& pins) {
     }
 
     ready = xSemaphoreCreateBinary();
-    if (ready == nullptr) {
-        ESP_LOGE(TAG, "cannot create handshake semaphore");
+    commands = xQueueCreate(COMMAND_QUEUE_DEPTH, sizeof(command_t));
+    // A one-slot queue holding only the newest reply, overwritten on each exchange
+    lastReply = xQueueCreate(1, sizeof(reply_t));
+    if (ready == nullptr || commands == nullptr || lastReply == nullptr) {
+        ESP_LOGE(TAG, "out of memory");
         return false;
     }
 
@@ -72,6 +85,45 @@ bool ControlLink::start(const control_link_pins_t& pins) {
     return true;
 }
 
+static bool queueCommand(QueueHandle_t commands, const command_t& command) {
+    if (commands == nullptr) {
+        ESP_LOGE(TAG, "command sent before start()");
+        return false;
+    }
+    if (xQueueSend(commands, &command, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "command queue full, command dropped");
+        return false;
+    }
+    return true;
+}
+
+bool ControlLink::stop() {
+    command_t command = {};
+    command.opcode = OP_STOP;
+    return queueCommand(commands, command);
+}
+
+bool ControlLink::setTargetPos(float x, float y, float theta) {
+    command_t command = {};
+    command.opcode = OP_TARGET_POS;
+    command.x = x;
+    command.y = y;
+    command.theta = theta;
+    return queueCommand(commands, command);
+}
+
+bool ControlLink::setServo(uint8_t id, uint8_t angleDeg) {
+    command_t command = {};
+    command.opcode = OP_SET_SERVO;
+    command.servoId = id;
+    command.angleDeg = angleDeg;
+    return queueCommand(commands, command);
+}
+
+bool ControlLink::getLastReply(reply_t* reply) {
+    return lastReply != nullptr && xQueuePeek(lastReply, reply, 0) == pdTRUE;
+}
+
 void ControlLink::taskEntry(void* self) {
     static_cast<ControlLink*>(self)->run();
 }
@@ -96,9 +148,28 @@ void ControlLink::run() {
     uint8_t seq = 0;
     bool first = true;
     while (true) {
+        command_t command = {};
+        // No command in time: send a Nop anyway, the ControlBoard stops without frames
+        if (xQueueReceive(commands, &command, pdMS_TO_TICKS(EXCHANGE_PERIOD_MS)) != pdTRUE) {
+            command.opcode = OP_NOP;
+        }
         waitForControlBoard();
 
-        encodeNop(txFrame, seq);
+        switch (command.opcode) {
+        case OP_STOP:
+            encodeStop(txFrame, seq);
+            break;
+        case OP_TARGET_POS:
+            encodeTargetPos(txFrame, seq, command.x, command.y, command.theta);
+            break;
+        case OP_SET_SERVO:
+            encodeSetServo(txFrame, seq, command.servoId, command.angleDeg);
+            break;
+        default:
+            encodeNop(txFrame, seq);
+            break;
+        }
+
         spi_transaction_t transaction = {};
         transaction.length = FRAME_LEN * 8;
         transaction.tx_buffer = txFrame;
@@ -115,6 +186,11 @@ void ControlLink::run() {
                 if (!first && reply.seq != (uint8_t)(seq - 1)) {
                     ESP_LOGW(TAG, "reply seq %u, expected %u", reply.seq, (uint8_t)(seq - 1));
                 }
+                // shortcut: a rejected command is only logged, not retried; add retries if commands get lost
+                if (!first && reply.status != STATUS_ACK) {
+                    ESP_LOGW(TAG, "ControlBoard rejected seq %u: status %u", reply.seq, reply.status);
+                }
+                xQueueOverwrite(lastReply, &reply);
                 ESP_LOGI(TAG, "status %u flags%s%s%s x %.1f mm y %.1f mm theta %.3f rad",
                          reply.status,
                          (reply.flags & FLAG_RESTARTED) ? " RESTARTED" : "",
@@ -125,7 +201,5 @@ void ControlLink::run() {
             first = false;
             seq++;
         }
-
-        vTaskDelay(pdMS_TO_TICKS(EXCHANGE_PERIOD_MS));
     }
 }

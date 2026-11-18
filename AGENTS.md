@@ -22,6 +22,7 @@ cmake -S tests -B tests/build && cmake --build tests/build && ctest --test-dir t
 - `control_link`: SPI master to the ControlBoard + frame protocol. Wire format spec:
   [wiki](https://github.com/robotronik/CDFR2027-PAMIs-CODE-Control/wiki/BrainBoard-SPI-Protocol).
   `protocol.cpp` has no IDF includes, so `tests/` builds it on the host.
+  Other modules call `stop`, `setTargetPos`, `setServo` (queued) and `getLastReply` (pose, flags).
   Replies run one exchange behind. A Nop is sent every 50 ms because the ControlBoard
   stops after 500 ms without a valid frame.
 
